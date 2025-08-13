@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Load the spreadsheet data
-df = pd.read_excel("updated_orange_county_benefits_programs.xlsx", engine="openpyxl")
+df = pd.read_excel("county_benefits_programs.xlsx", engine="openpyxl")
 
 st.title("Eligibility Finder for Families with Individuals with Disabilities")
 st.markdown("Complete the form below to find programs and benefits that may apply to your family based on your responses.")
