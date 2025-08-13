@@ -4,30 +4,34 @@ import pandas as pd
 # Load the spreadsheet data
 df = pd.read_excel("orange_county_benefits_programs.xlsx", engine="openpyxl")
 
-st.title("Eligibility Finder for Families with Individuals with Disabilities")
-st.markdown("Complete the form below to find programs and benefits that may apply to your family based on your responses.")
+st.title("Orange County Public Assistance Eligibility Finder")
+
+st.markdown("Use this form to determine which programs your family or individual with disabilities may be eligible for. Questions are categorized to distinguish between parent/guardian and the individual with disabilities age 18+.")
 
 # Form for user input
-with st.form("disability_eligibility_form"):
-    age_group = st.selectbox("Age Group of Individual with Disability", ["0-2", "3-21", "22+"])
-    regional_center = st.selectbox("Is the individual a Regional Center client?", ["Yes", "No"])
-    household_income = st.number_input("Household Annual Income (USD)", min_value=0)
-    household_size = st.number_input("Number of Household Members", min_value=1)
-    num_disabled_children = st.number_input("Number of Children with Disabilities", min_value=0)
-    pregnant = st.selectbox("Is anyone in the household pregnant?", ["No", "Yes"])
-    employment_status = st.selectbox("Employment Status", ["Employed", "Unemployed", "Disabled", "Student"])
-    veteran_status = st.selectbox("Is anyone a veteran?", ["No", "Yes"])
-    receives_ssi = st.selectbox("Receiving SSI?", ["No", "Yes"])
-    receives_snap = st.selectbox("Receiving SNAP (CalFresh)?", ["No", "Yes"])
-    receives_medical = st.selectbox("Receiving Medi-Cal?", ["No", "Yes"])
+with st.form("eligibility_form"):
+    st.header("Family Information (Parent/Guardian)")
+    family_income = st.number_input("Parent/Guardian Annual Household Income (USD)", min_value=0)
+    household_size = st.number_input("Total Number of Household Members", min_value=1)
+    receives_snap = st.selectbox("Is the household receiving SNAP (CalFresh)?", ["No", "Yes"])
+    receives_medical = st.selectbox("Is the household receiving Medi-Cal?", ["No", "Yes"])
+
+    st.header("Individual with Disability")
+    individual_age = st.number_input("Age of Individual with Disability", min_value=0)
+    individual_disabled = st.selectbox("Does the individual have a documented disability?", ["No", "Yes"])
+    individual_rc_client = st.selectbox("Is the individual a Regional Center client?", ["No", "Yes"])
+    individual_pregnant = st.selectbox("Is the individual pregnant?", ["No", "Yes"])
+    individual_employment_status = st.selectbox("Individual's Employment Status", ["Employed", "Unemployed", "Disabled", "Student"])
+    individual_veteran_status = st.selectbox("Is the individual a veteran?", ["No", "Yes"])
+    receives_ssi = st.selectbox("Is the individual receiving SSI?", ["No", "Yes"])
+
     submitted = st.form_submit_button("Check Eligibility")
 
 if submitted:
-    # Calculate FPL percentage
     base_fpl = 15060
     additional_per_person = 5380
     fpl_threshold = base_fpl + additional_per_person * (household_size - 1)
-    fpl_percentage = (household_income / fpl_threshold) * 100
+    fpl_percentage = (family_income / fpl_threshold) * 100
 
     st.markdown(f"### Estimated Federal Poverty Level (FPL): {fpl_percentage:.1f}%")
 
@@ -37,34 +41,34 @@ if submitted:
         criteria = str(row.get("Eligibility Criteria", "")).lower()
         match = False
 
-        if "regional center" in criteria and regional_center == "Yes":
-            match = True
-        elif "ssi" in criteria and receives_ssi == "Yes":
+        if "ssi" in criteria and receives_ssi == "Yes":
             match = True
         elif "snap" in criteria and receives_snap == "Yes":
             match = True
         elif "medi-cal" in criteria and receives_medical == "Yes":
             match = True
-        elif "pregnant" in criteria and pregnant == "Yes":
+        elif "pregnant" in criteria and individual_pregnant == "Yes":
             match = True
-        elif "veteran" in criteria and veteran_status == "Yes":
+        elif "veteran" in criteria and individual_veteran_status == "Yes":
             match = True
-        elif "disabilities" in criteria and num_disabled_children > 0:
+        elif "disabilities" in criteria and individual_disabled == "Yes":
             match = True
-        elif "unemployed" in criteria and employment_status == "Unemployed":
+        elif "regional center" in criteria and individual_rc_client == "Yes":
             match = True
-        elif "student" in criteria and employment_status == "Student":
+        elif "unemployed" in criteria and individual_employment_status == "Unemployed":
             match = True
-        elif "disabled" in criteria and employment_status == "Disabled":
+        elif "student" in criteria and individual_employment_status == "Student":
+            match = True
+        elif "disabled" in criteria and individual_employment_status == "Disabled":
             match = True
         elif "income" in criteria or "fpl" in criteria:
             if fpl_percentage <= 400:
                 match = True
-        elif "age 0-2" in criteria and age_group == "0-2":
+        elif "age 0-2" in criteria and individual_age <= 2:
             match = True
-        elif "age 3-21" in criteria and age_group == "3-21":
+        elif "age 3-21" in criteria and 3 <= individual_age <= 21:
             match = True
-        elif "age 22+" in criteria and age_group == "22+":
+        elif "age 22+" in criteria and individual_age >= 22:
             match = True
 
         if match:
@@ -83,4 +87,3 @@ if submitted:
             st.markdown("---")
     else:
         st.warning("No matching programs found based on the provided information.")
-
