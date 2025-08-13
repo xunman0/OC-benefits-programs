@@ -5,111 +5,159 @@ import pandas as pd
 # Load the spreadsheet data
 df = pd.read_excel("updated_orange_county_benefits_programs.xlsx", engine="openpyxl")
 
-st.title("Orange County Disability Benefits Eligibility Finder")
+st.set_page_config(page_title="Disability Benefits Eligibility Tool", layout="centered")
 
-st.markdown("This form helps families determine which programs an individual with disabilities may qualify for based on age, income, citizenship, and other factors.")
+st.title("Orange County Disability Benefits Eligibility Tool")
 
-# Section: Family Information
-st.header("Family Information (Parent/Guardian)")
-with st.form("family_info"):
-    household_income = st.number_input("Household Annual Income (USD)", min_value=0)
-    household_size = st.number_input("Number of Household Members", min_value=1)
-    parent_citizenship = st.selectbox("Parent/Guardian Citizenship Status", ["U.S. Citizen", "Lawful Permanent Resident", "Other"])
-    submitted_family = st.form_submit_button("Continue to Individual Section")
+st.markdown("""
+This tool helps families determine which public benefits and programs their child or adult child with disabilities may qualify for based on:
+- Age group
+- Citizenship
+- Current benefits
+- Employment and income (if 18+)
+- Household income (if under 18)
+""")
 
-if submitted_family:
-    st.session_state["household_income"] = household_income
-    st.session_state["household_size"] = household_size
-    st.session_state["parent_citizenship"] = parent_citizenship
+# Step 1: Age Group
+st.header("Step 1: Age Group")
+age_group = st.selectbox(
+    "Select the age group of the individual with disabilities:",
+    ["0-2", "3-21", "22+"]
+)
+# Step 2: Current Benefits and Citizenship
+st.header("Step 2: Current Benefits and Citizenship")
 
-# Section: Individual with Disability
-if submitted_family:
-    st.header("Individual with Disability")
-    with st.form("individual_info"):
-        age = st.number_input("Age of Individual", min_value=0)
-        disability_type = st.text_input("Type of Disability")
-        receives_ssi = st.selectbox("Receiving SSI?", ["No", "Yes"])
-        receives_medical = st.selectbox("Receiving Medi-Cal?", ["No", "Yes"])
-        receives_snap = st.selectbox("Receiving SNAP (CalFresh)?", ["No", "Yes"])
-        child_citizenship = st.selectbox("Individual's Citizenship Status", ["U.S. Citizen", "Lawful Permanent Resident", "Other"])
-        regional_center_client = st.selectbox("Is the individual a Regional Center client?", ["No", "Yes"])
-        if age >= 18:
-            employed = st.selectbox("Is the individual employed?", ["No", "Yes"])
-            individual_income = st.number_input("Individual's Annual Income (USD)", min_value=0) if employed == "Yes" else 0
-        else:
-            employed = "No"
-            individual_income = 0
-        submitted_individual = st.form_submit_button("Check Eligibility")
+current_benefits = st.multiselect(
+    "Select any current benefits or programs the individual is receiving:",
+    [
+        "First Start",
+        "First Start Transition",
+        "Institutional Deeming",
+        "SSI",
+        "SSDI",
+        "IHSS",
+        "WIC",
+        "CalFresh",
+        "Medi-Cal"
+    ]
+)
 
-    if submitted_individual:
-        base_fpl = 15060
-        additional_per_person = 5380
-        fpl_threshold = base_fpl + additional_per_person * (st.session_state["household_size"] - 1)
-        fpl_percentage = (st.session_state["household_income"] / fpl_threshold) * 100
+citizenship_status = st.selectbox(
+    "Is the individual a U.S. citizen?",
+    ["Yes", "No"]
+)
+# Step 3: Employment and Income (for individuals 18+)
+show_income_section = False
+individual_income = 0
+is_employed = "No"
 
-        st.subheader(f"Estimated Federal Poverty Level (FPL): {fpl_percentage:.1f}%")
+if age_group == "22+":
+    show_income_section = True
+elif age_group == "3-21":
+    is_18_or_older = st.checkbox("Is the individual 18 or older?")
+    if is_18_or_older:
+        show_income_section = True
 
-        matching_programs = []
+if show_income_section:
+    st.header("Step 3: Employment and Income")
+    is_employed = st.selectbox("Is the individual employed?", ["Yes", "No"])
+    if is_employed == "Yes":
+        individual_income = st.number_input("Enter the individual's annual income (USD):", min_value=0)
+# Step 4: Parent/Guardian Household Information (for individuals under 18)
+household_income = 0
+household_size = 1
 
-        for _, row in df.iterrows():
-            criteria = str(row.get("Eligibility Criteria", "")).lower()
-            match = False
+if age_group in ["0-2", "3-21"] and not (age_group == "3-21" and show_income_section):
+    st.header("Step 4: Parent/Guardian Household Information")
 
-            if "ssi" in criteria and receives_ssi == "yes":
-                match = True
-            elif "medi-cal" in criteria and receives_medical == "yes":
-                match = True
-            elif "snap" in criteria and receives_snap == "yes":
-                match = True
-            elif "regional center" in criteria and regional_center_client == "yes":
-                match = True
-            elif "citizenship" in criteria and child_citizenship.lower() in criteria:
-                match = True
-            elif "income" in criteria or "fpl" in criteria:
-                if fpl_percentage <= 400 or individual_income <= 25000:
-                    match = True
-            elif "age" in criteria:
-                if age <= 2 and "0-2" in criteria:
-                    match = True
-                elif 3 <= age <= 21 and "3-21" in criteria:
-                    match = True
-                elif age >= 22 and "22+" in criteria:
-                    match = True
+    parent_citizenship = st.selectbox(
+        "Is the parent or guardian a U.S. citizen?",
+        ["Yes", "No"]
+    )
 
-            if match:
-                matching_programs.append(row)
+    household_income = st.number_input(
+        "Enter the total household annual income (USD):",
+        min_value=0
+    )
 
-        # Prioritize Medi-Cal, IHSS, SSI
-        priority_programs = []
-        other_programs = []
-        for program in matching_programs:
-            name = program['Program Name'].lower()
-            if "medi-cal" in name or "ihss" in name or "ssi" in name:
-                priority_programs.append(program)
-            else:
-                other_programs.append(program)
+    household_size = st.number_input(
+        "Enter the total number of people in the household:",
+        min_value=1
+    )
+# Step 5: Eligibility Calculation and Summary Output
+if st.button("Check Eligibility"):
+    st.header("Eligibility Summary")
 
-        st.subheader("Eligibility Summary")
+    # Calculate FPL
+    base_fpl = 15060
+    additional_per_person = 5380
+    fpl_threshold = base_fpl + additional_per_person * (household_size - 1)
+    fpl_percentage = (household_income / fpl_threshold) * 100 if household_income > 0 else 0
 
-        if priority_programs:
-            st.markdown("### Priority Programs (Medi-Cal, IHSS, SSI)")
-            for program in priority_programs:
-                st.markdown(f"**{program['Program Name']}**")
-                st.markdown(f"- Administering Agency: {program['Administering Agency']}")
-                st.markdown(f"- Description: {program['Description']}")
-                st.markdown(f"- Application Link: [{program['Application Link']}]({program['Application Link']})")
-                st.markdown(f"- Eligibility Criteria: {program['Eligibility Criteria']}")
-                st.markdown("---")
+    st.markdown(f"**Estimated Federal Poverty Level (FPL):** {fpl_percentage:.1f}%")
 
-        if other_programs:
-            st.markdown("### Additional Eligible Programs")
-            for program in other_programs:
-                st.markdown(f"**{program['Program Name']}**")
-                st.markdown(f"- Administering Agency: {program['Administering Agency']}")
-                st.markdown(f"- Description: {program['Description']}")
-                st.markdown(f"- Application Link: [{program['Application Link']}]({program['Application Link']})")
-                st.markdown(f"- Eligibility Criteria: {program['Eligibility Criteria']}")
-                st.markdown("---")
+    # Prioritized programs
+    st.subheader("Primary Programs")
+    st.markdown("""
+    These are the core programs that many individuals with disabilities may qualify for:
+    """)
 
-        if not matching_programs:
-            st.warning("No matching programs found based on the provided information.")
+    if "Medi-Cal" in current_benefits or fpl_percentage <= 138:
+        st.markdown("✅ **Medi-Cal** – Based on income and/or disability status.")
+    if "IHSS" in current_benefits or ("Medi-Cal" in current_benefits and age_group in ["3-21", "22+"]):
+        st.markdown("✅ **IHSS (In-Home Supportive Services)** – Requires Medi-Cal eligibility and functional need.")
+    if "SSI" in current_benefits or (age_group in ["3-21", "22+"] and fpl_percentage <= 100):
+        st.markdown("✅ **SSI (Supplemental Security Income)** – Based on disability and financial need.")
+
+    # Additional programs
+    st.subheader("Other Potentially Eligible Programs")
+    for benefit in current_benefits:
+        if benefit not in ["Medi-Cal", "IHSS", "SSI"]:
+            st.markdown(f"🔹 **{benefit}** – Already receiving or may qualify based on your inputs.")
+
+    if fpl_percentage <= 185:
+        st.markdown("🔹 **WIC** – For children under 5 and pregnant individuals in low-income households.")
+    if fpl_percentage <= 200:
+        st.markdown("🔹 **CalFresh (SNAP)** – Food assistance for low-income individuals and families.")
+    if "Institutional Deeming" in current_benefits:
+        st.markdown("🔹 **Institutional Deeming Waiver** – May allow Medi-Cal eligibility regardless of parental income.")
+
+    st.markdown("---")
+    st.info("This summary is based on general eligibility guidelines. For a full assessment, contact your local Social Services Agency or Regional Center.")
+    import io
+
+# Optional: Generate a downloadable summary
+if st.button("Download Summary as Text"):
+    summary = f"""
+    Orange County Disability Benefits Eligibility Summary
+
+    Age Group: {age_group}
+    Citizenship: {citizenship}
+    Current Benefits: {', '.join(current_benefits) if current_benefits else 'None'}
+    Employed: {is_employed}
+    Individual Income: ${individual_income:,}
+    Household Income: ${household_income:,}
+    Household Size: {household_size}
+    Estimated FPL: {fpl_percentage:.1f}%
+
+    Primary Programs:
+    - Medi-Cal
+    - IHSS
+    - SSI
+
+    Additional Programs:
+    - {', '.join([b for b in current_benefits if b not in ['Medi-Cal', 'IHSS', 'SSI']])}
+    """
+
+    st.download_button(
+        label="📄 Download Summary",
+        data=summary,
+        file_name="eligibility_summary.txt",
+        mime="text/plain"
+    )
+
+# Optional: Reset form (simulated by rerunning the script)
+if st.button("Reset Form"):
+    st.experimental_rerun()
+
+
